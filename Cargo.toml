@@ -1,0 +1,23 @@
+[package]
+name = "razorpay-client"
+version = "0.1.0"
+edition = "2024"
+description = "Razorpay client library."
+repository = "https://github.com/Salman-Sali/razorpay-client"
+readme = "README.md"
+license = "MIT"
+keywords = ["razorpay", "payment"]
+
+
+[dependencies]
+hex = "0.4.3"
+hmac = "0.12.1"
+once_cell = "1.21.3"
+reqwest = { version = "0.13.1", features = ["json", "rustls"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+strum = { version = "0.27.2", features = ["derive"] }
+strum_macros = "0.28.0"
+thiserror = "2.0.18"
+url = "2.5.8"
