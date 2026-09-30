@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub mod create_order;
 pub mod fetch_order;
 
@@ -13,6 +15,7 @@ pub struct Order {
     pub currency: String,
     pub receipt: Option<String>,
     pub status: OrderStatus,
+    pub notes: HashMap<String, String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

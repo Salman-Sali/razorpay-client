@@ -1,14 +1,13 @@
+use std::collections::HashMap;
+
 use crate::{RazorpayClient, currency::Currency, error::Error, order::ORDER_URL};
 
 impl RazorpayClient {
     pub async fn create_order(
         &self,
-        amount: u32,
-        currency: Currency,
+        order: CreateOrderRequest,
     ) -> Result<CreateOrderResponse, Error> {
         let request_url = self.url.join(ORDER_URL)?;
-
-        let order = CreateOrderRequest::new(amount, currency.to_string());
 
         let response = self
             .client()
@@ -21,8 +20,8 @@ impl RazorpayClient {
         if !response.status().is_success() {
             return Err(Error::ApiError(format!(
                 "Amount: {}, currency: {}, StatusCode: {:?}, Error: {:?}",
-                amount,
-                currency,
+                order.amount,
+                order.currency,
                 response.status(),
                 response.text().await?
             )));
@@ -35,14 +34,27 @@ impl RazorpayClient {
 }
 
 #[derive(serde::Serialize, Debug, Clone)]
-struct CreateOrderRequest {
+pub struct CreateOrderRequest {
     amount: u32,
     currency: String,
+    notes: HashMap<String, String>,
 }
 
 impl CreateOrderRequest {
-    fn new(amount: u32, currency: String) -> Self {
-        Self { amount, currency }
+    pub fn new(amount: u32, currency: Currency) -> Self {
+        Self {
+            amount,
+            currency: currency.to_string(),
+            notes: HashMap::new(),
+        }
+    }
+
+    pub fn with_note(&mut self, key: String, value: impl Into<String>) {
+        if self.notes.len() > 15 {
+            return;
+        }
+
+        self.notes.insert(key, value.into());
     }
 }
 
