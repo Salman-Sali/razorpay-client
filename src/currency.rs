@@ -1,8 +1,7 @@
 use strum::Display;
 use strum_macros::EnumIter;
 
-
-#[derive(serde::Serialize, serde::Deserialize, Display,EnumIter, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Display, EnumIter, Debug, Clone)]
 pub enum Currency {
     //United Arab Emirates Dirham
     AED,

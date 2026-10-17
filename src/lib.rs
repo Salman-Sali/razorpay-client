@@ -2,6 +2,7 @@ pub mod currency;
 pub mod error;
 pub mod order;
 pub mod payment;
+pub mod refund;
 pub mod webhook;
 
 use std::str::FromStr;

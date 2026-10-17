@@ -6,7 +6,7 @@ use crate::{
 
 impl RazorpayClient {
     pub async fn fetch_order(&self, order_id: &str) -> Result<Order, Error> {
-        let request_url = self.url.join(ORDER_URL)?.join(order_id)?;
+        let request_url = self.url.join(&format!("{ORDER_URL}/{order_id}"))?;
 
         let response = self
             .client()

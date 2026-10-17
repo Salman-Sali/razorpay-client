@@ -8,6 +8,7 @@ This crate provides a simple and intuitive interface for integrating Razorpay pa
 
 - Create and fetch orders
 - Fetch payment details
+- Create and fetch refunds, refund webhook events
 - Verify webhook signatures
 - Verify payment signatures
 - Strong typing with comprehensive error handling
