@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
+use reqwest::Method;
+
 use crate::{
     RazorpayClient,
     error::Error,
+    order::create_order::MAX_NOTES,
     payment::PAYMENT_URL,
     refund::{Refund, RefundSpeed},
 };
@@ -15,32 +18,15 @@ impl RazorpayClient {
         payment_id: &str,
         request: CreateRefundRequest,
     ) -> Result<Refund, Error> {
-        let request_url = self
-            .url
-            .join(PAYMENT_URL)?
-            .join(&format!("{payment_id}/refund"))?;
+        let http_request = self
+            .request(Method::POST, &format!("{PAYMENT_URL}{payment_id}/refund"))?
+            .json(&request);
 
-        let response = self
-            .client()
-            .post(request_url)
-            .basic_auth(&self.key_id, Some(&self.key_secret))
-            .json(&request)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            return Err(Error::ApiError(format!(
-                "PaymentId: {}, Amount: {}, StatusCode: {:?}, Error: {:?}",
-                payment_id,
-                request.amount,
-                response.status(),
-                response.text().await?
-            )));
-        }
-
-        let response = response.json::<Refund>().await?;
-
-        Ok(response)
+        Self::send(
+            http_request,
+            format!("PaymentId: {}, Amount: {}", payment_id, request.amount),
+        )
+        .await
     }
 }
 
@@ -74,7 +60,7 @@ impl CreateRefundRequest {
     }
 
     pub fn with_note(&mut self, key: String, value: impl Into<String>) {
-        if self.notes.len() > 15 {
+        if self.notes.len() >= MAX_NOTES && !self.notes.contains_key(&key) {
             return;
         }
 
@@ -83,6 +69,11 @@ impl CreateRefundRequest {
 
     pub fn with_receipt(&mut self, receipt: impl Into<String>) {
         self.receipt = Some(receipt.into());
+    }
+
+    /// `optimum` refunds instantly where the bank supports it, at an extra fee.
+    pub fn with_speed(&mut self, speed: RefundSpeed) {
+        self.speed = speed;
     }
 }
 

@@ -1,30 +1,31 @@
+use reqwest::Method;
+
 use crate::{
     RazorpayClient,
+    collection::{Collection, ListOptions},
     error::Error,
     order::{ORDER_URL, Order},
+    payment::Payment,
 };
 
 impl RazorpayClient {
     pub async fn fetch_order(&self, order_id: &str) -> Result<Order, Error> {
-        let request_url = self.url.join(&format!("{ORDER_URL}/{order_id}"))?;
+        let request = self.request(Method::GET, &format!("{ORDER_URL}/{order_id}"))?;
 
-        let response = self
-            .client()
-            .get(request_url)
-            .basic_auth(&self.key_id, Some(&self.key_secret))
-            .send()
-            .await?;
+        Self::send(request, format!("Order_id: {order_id}")).await
+    }
 
-        if !response.status().is_success() {
-            return Err(Error::ApiError(format!(
-                "Order_id: {}, StatusCode: {:?}, Error: {:?}",
-                order_id,
-                response.status(),
-                response.text().await?
-            )));
-        }
-        let response = response.json::<Order>().await?;
+    /// Payments made against an order, including failed attempts.
+    pub async fn fetch_order_payments(&self, order_id: &str) -> Result<Collection<Payment>, Error> {
+        let request = self.request(Method::GET, &format!("{ORDER_URL}/{order_id}/payments"))?;
 
-        Ok(response)
+        Self::send(request, format!("Order_id: {order_id}")).await
+    }
+
+    /// Lists orders; use `ListOptions` to page through them.
+    pub async fn fetch_orders(&self, options: &ListOptions) -> Result<Collection<Order>, Error> {
+        let request = self.request(Method::GET, ORDER_URL)?.query(options);
+
+        Self::send(request, "Fetch orders").await
     }
 }

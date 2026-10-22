@@ -1,31 +1,29 @@
+use reqwest::Method;
+
 use crate::{
     RazorpayClient,
+    collection::{Collection, ListOptions},
     error::Error,
     payment::{PAYMENT_URL, Payment},
 };
 
 impl RazorpayClient {
-    pub async fn fetch_payment(&self, payment_id: String) -> Result<Payment, Error> {
-        let request_url = self.url.join(PAYMENT_URL)?.join(&payment_id)?;
+    pub async fn fetch_payment(&self, payment_id: impl AsRef<str>) -> Result<Payment, Error> {
+        let payment_id = payment_id.as_ref();
+        let request = self.request(Method::GET, &format!("{PAYMENT_URL}{payment_id}"))?;
 
-        let response = self
-            .client()
-            .get(request_url)
-            .basic_auth(&self.key_id, Some(&self.key_secret))
-            .send()
-            .await?;
+        Self::send(request, format!("PaymentId: {payment_id}")).await
+    }
 
-        if !response.status().is_success() {
-            return Err(Error::ApiError(format!(
-                "PaymentId: {}, StatusCode: {:?}, Error: {:?}",
-                payment_id,
-                response.status(),
-                response.text().await?
-            )));
-        }
+    /// Lists payments; use `ListOptions` to page through them.
+    pub async fn fetch_payments(
+        &self,
+        options: &ListOptions,
+    ) -> Result<Collection<Payment>, Error> {
+        let request = self
+            .request(Method::GET, PAYMENT_URL.trim_end_matches('/'))?
+            .query(options);
 
-        let response = response.json::<Payment>().await?;
-
-        Ok(response)
+        Self::send(request, "Fetch payments").await
     }
 }

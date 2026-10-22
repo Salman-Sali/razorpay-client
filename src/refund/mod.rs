@@ -1,5 +1,8 @@
 pub mod create_refund;
 pub mod fetch_refund;
+pub mod update_refund;
+
+use std::collections::HashMap;
 
 use crate::currency::Currency;
 
@@ -13,9 +16,8 @@ pub struct Refund {
     pub amount: u32,
     pub currency: Currency,
     pub payment_id: String,
-    /// Razorpay returns an empty array (not an object) when there are no notes.
-    #[serde(default)]
-    pub notes: Option<serde_json::Value>,
+    #[serde(default, deserialize_with = "crate::notes::deserialize")]
+    pub notes: HashMap<String, String>,
     pub receipt: Option<String>,
     pub batch_id: Option<String>,
     pub status: RefundStatus,
@@ -86,5 +88,6 @@ mod test {
 
         assert_eq!(refund.status, RefundStatus::Processed);
         assert_eq!(refund.receipt, None);
+        assert_eq!(refund.notes["k"], "v");
     }
 }

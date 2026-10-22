@@ -2,16 +2,18 @@
 
 A Rust client library for interacting with the [Razorpay API](https://razorpay.com/docs/api/).
 
-This crate provides a simple and intuitive interface for integrating Razorpay payments into your Rust applications. It supports order creation, payment processing, webhook verification, and more.
+This crate provides a simple and intuitive interface for integrating Razorpay payments into your Rust applications. It covers orders, payments, refunds, customers, payment links, webhooks and signature verification.
 
 ## Features
 
-- Create and fetch orders
-- Fetch payment details
-- Create and fetch refunds, refund webhook events
-- Verify webhook signatures
-- Verify payment signatures
-- Strong typing with comprehensive error handling
+- Orders: create, fetch, list, update notes, fetch an order's payments
+- Payments: fetch, list, capture, update notes
+- Refunds: create (full, partial, instant), fetch, list, list per payment, update notes
+- Customers: create, edit, fetch, list
+- Payment links: create, fetch, list, update, cancel, resend notification
+- Webhooks: typed payment, order, refund and payment link events
+- Webhook, payment and payment link signature verification (constant time)
+- Structured Razorpay API errors
 - Async/await support
 
 ## Installation
@@ -20,7 +22,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-razorpay-client = { path = "./razorpay-client" }
+razorpay-client = "0.4"
 ```
 
 ## Usage
@@ -37,74 +39,131 @@ let client = RazorpayClient::new(
 )?;
 ```
 
-### Create an Order
+### Orders
 
 ```rust
-use razorpay_client::currency::Currency;
+use razorpay_client::{currency::Currency, order::create_order::CreateOrderRequest};
 
-let order = client.create_order(100, Currency::INR).await?;
-println!("Order ID: {}", order.id);
+let mut request = CreateOrderRequest::new(50000, Currency::INR); // ₹500.00, in paise
+request.with_receipt("receipt#1");
+request.with_note("customer".to_string(), "42");
+
+let order = client.create_order(request).await?;
+let order = client.fetch_order(&order.id).await?;
+let payments = client.fetch_order_payments(&order.id).await?;
 ```
 
-### Fetch an Order
+### Payments
 
 ```rust
-let order = client.fetch_order("order_id").await?;
-println!("Order status: {:?}", order.status);
+let payment = client.fetch_payment("pay_29QQoUBi66xm2f").await?;
+
+// Only needed when payments are not captured automatically.
+let payment = client.capture_payment(&payment.id, payment.amount, Currency::INR).await?;
 ```
 
-### Fetch a Payment
+### Refunds
 
 ```rust
-let payment = client.fetch_payment("payment_id".to_string()).await?;
-println!("Payment status: {:?}", payment.status);
+use razorpay_client::refund::{RefundSpeed, create_refund::CreateRefundRequest};
+
+let mut request = CreateRefundRequest::new(10000);
+request.with_speed(RefundSpeed::Optimum);
+
+let refund = client.create_refund("pay_29QQoUBi66xm2f", request).await?;
+let refund = client.fetch_refund(&refund.id).await?;
 ```
 
-### Verify Webhook Signature
+### Listing
+
+List endpoints take `ListOptions` and return a `Collection`:
 
 ```rust
-let is_valid = client.verify_webhook_signature(&body, &signature).await?;
-if is_valid {
-    println!("Webhook signature is valid");
+use razorpay_client::collection::ListOptions;
+
+let mut options = ListOptions::new();
+options.with_count(100);
+options.with_skip(100);
+
+let orders = client.fetch_orders(&options).await?;
+for order in orders.items { /* ... */ }
+```
+
+### Customers
+
+```rust
+use razorpay_client::customer::create_customer::CreateCustomerRequest;
+
+let mut request = CreateCustomerRequest::new("Gaurav Kumar");
+request.with_email("gaurav.kumar@example.com");
+request.with_contact("+919000090000");
+
+let customer = client.create_customer(request).await?;
+```
+
+### Payment Links
+
+```rust
+use razorpay_client::payment_link::{
+    PaymentLinkCustomer, create_payment_link::CreatePaymentLinkRequest,
+};
+
+let mut request = CreatePaymentLinkRequest::new(100000, Currency::INR);
+request.with_reference_id("invoice-1001");
+request.with_description("Invoice #1001");
+request.with_customer(PaymentLinkCustomer {
+    name: Some("Gaurav Kumar".into()),
+    contact: Some("+919000090000".into()),
+    email: None,
+});
+request.with_notify(true, true);
+request.with_callback_url("https://example.com/payment/callback");
+
+let link = client.create_payment_link(request).await?;
+println!("Share: {}", link.short_url);
+```
+
+On the callback, verify the query parameters Razorpay sends:
+
+```rust
+let is_valid = client
+    .verify_payment_link_signature(&plink_id, &reference_id, &status, &payment_id, &signature)
+    .await?;
+```
+
+### Webhooks
+
+```rust
+use razorpay_client::webhook::{Webhook, WebhookEvent, PaymentEvent, RefundEvent};
+
+if !client.verify_webhook_signature(&body, &signature).await? {
+    return Err(/* reject */);
+}
+
+let webhook = Webhook::try_from(body.as_slice())?;
+match webhook.event {
+    WebhookEvent::Payment(PaymentEvent::Captured) => {
+        let payment = webhook.payload.payment.unwrap().entity;
+    }
+    WebhookEvent::Refund(RefundEvent::Processed) => {
+        let refund = webhook.payload.refund.unwrap().entity;
+    }
+    _ => {}
 }
 ```
 
-### Verify Payment Signature
+### Verify Payment Signature (Checkout)
 
 ```rust
 let is_valid = client.verify_payment_signature(&order_id, &payment_id, &signature).await?;
-if is_valid {
-    println!("Payment signature is valid");
-}
 ```
-
-## Modules
-
-### Order Management
-
-The `order` module provides functionality for creating and fetching orders:
-
-- `create_order(amount, currency)` - Creates a new order
-- `fetch_order(order_id)` - Retrieves an existing order by ID
-
-### Payment Processing
-
-The `payment` module handles payment-related operations:
-
-- `fetch_payment(payment_id)` - Retrieves payment details by ID
-
-### Webhook Handling
-
-The `webhook` module provides structures for parsing and verifying Razorpay webhooks:
-
-- Webhook event parsing for payment events (authorized, captured, failed)
-- Type-safe webhook payload handling
 
 ## Error Handling
 
-All operations return a `Result` with the crate's custom `Error` type, which includes:
+All operations return a `Result` with the crate's `Error` type:
 
-- `ApiError` - Errors from the Razorpay API
+- `Razorpay { status, context, error }` - Razorpay rejected the request; `error.code` is e.g. `BAD_REQUEST_ERROR`
+- `ApiError` - Network errors and non-JSON error responses
 - `UrlParseError` - URL parsing errors
 - `SerdeJsonError` - JSON serialization/deserialization errors
 - `SomethingWentWrong` - General errors
